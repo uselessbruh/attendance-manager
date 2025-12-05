@@ -121,7 +121,7 @@ class AttendanceApp {
         try {
             const username = sessionStorage.getItem('username');
             const password = sessionStorage.getItem('password');
-            
+
             if (!username || !password) {
                 sessionStorage.clear();
                 this.showLogin('Session expired. Please login again.');
@@ -135,7 +135,7 @@ class AttendanceApp {
                 },
                 body: JSON.stringify({ username, password })
             });
-            
+
             const data = await response.json();
 
             if (data.success) {
@@ -162,7 +162,7 @@ class AttendanceApp {
 
     showDashboard() {
         const { student_name, attendance, semesters } = this.userData;
-        
+
         const totalClasses = attendance.reduce((sum, c) => sum + c.total, 0);
         const totalAttended = attendance.reduce((sum, c) => sum + c.attended, 0);
         const avgPercentage = totalClasses > 0 ? Math.round((totalAttended / totalClasses) * 100) : 0;
