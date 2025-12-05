@@ -86,9 +86,15 @@ class AttendanceApp {
             });
 
             const data = await response.json();
+            console.log('Login response:', data);
 
             if (data.success) {
+                if (!data.token) {
+                    this.showLogin('Login succeeded but no token received.');
+                    return;
+                }
                 sessionStorage.setItem('authToken', data.token);
+                console.log('Token stored, loading dashboard...');
                 await this.loadDashboard();
             } else {
                 this.showLogin(data.error || 'Login failed. Please check your credentials.');
@@ -121,7 +127,7 @@ class AttendanceApp {
                 this.showDashboard();
             } else {
                 sessionStorage.removeItem('authToken');
-                this.showLogin('Session expired. Please login again.');
+                this.showLogin(data.error || 'Session expired. Please login again.');
             }
         } catch (error) {
             sessionStorage.removeItem('authToken');
