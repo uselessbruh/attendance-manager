@@ -11,34 +11,62 @@ from .config import (
 def perform_login(username, password):
     session_obj = requests.Session()
     try:
-        r_get = session_obj.get(LOGIN_PAGE_URL, headers=BROWSER_HEADERS)
+        r_get = session_obj.get(LOGIN_PAGE_URL, headers=BROWSER_HEADERS, timeout=10)
         r_get.raise_for_status()
         soup = BeautifulSoup(r_get.text, 'html.parser')
-        login_csrf = soup.find('input', {'name': '_csrf'})['value']
+        
+        login_csrf_input = soup.find('input', {'name': '_csrf'})
+        if not login_csrf_input:
+            return None, "Could not find login CSRF token. The website may be down or changed."
+        login_csrf = login_csrf_input.get('value')
+        if not login_csrf:
+            return None, "Login CSRF token is empty."
 
         payload = {'j_username': username, 'j_password': password, '_csrf': login_csrf}
-        r_post = session_obj.post(AUTH_URL, data=payload, headers=BROWSER_HEADERS)
+        r_post = session_obj.post(AUTH_URL, data=payload, headers=BROWSER_HEADERS, timeout=10)
         r_post.raise_for_status()
 
-        if "Bad credentials" in r_post.text:
+        if "Bad credentials" in r_post.text or "error" in r_post.text.lower():
             return None, "Invalid credentials"
+        
+        # Verify login was successful by checking for redirect or dashboard elements
+        if "login" in r_post.url.lower():
+            return None, "Login failed. Please check your credentials."
+            
         return session_obj, None
+    except requests.exceptions.Timeout:
+        return None, "Connection timeout. Please try again."
+    except requests.exceptions.ConnectionError:
+        return None, "Unable to connect to PESU Academy. Please check your internet connection."
     except Exception as e:
-        return None, str(e)
+        return None, f"Login error: {str(e)}"
 
 
 def get_semesters_and_csrf(session_obj, username):
     dashboard_res = session_obj.get(LOGIN_PAGE_URL, headers=BROWSER_HEADERS)
+    dashboard_res.raise_for_status()
     soup = BeautifulSoup(dashboard_res.text, 'html.parser')
-    csrf_token = soup.find('input', {'name': 'csrf'})['value']
+    
+    csrf_input = soup.find('input', {'name': 'csrf'})
+    if not csrf_input:
+        raise ValueError("Could not find CSRF token. Login may have failed or session expired.")
+    csrf_token = csrf_input.get('value')
+    if not csrf_token:
+        raise ValueError("CSRF token is empty. Login may have failed.")
+    
     semester_options = soup.find_all('option')
-    semesters = [{'id': opt['value'].strip('"'), 'name': opt.text} for opt in semester_options]
+    semesters = [{'id': opt.get('value', '').strip('"'), 'name': opt.text} for opt in semester_options if opt.get('value')]
+    
     student_name_tag = soup.find('span', class_='app-name-font')
     student_name = student_name_tag.text.strip().title() if student_name_tag else username
+    
     return semesters, student_name, csrf_token
 
 
 def get_attendance_data(session_obj, batch_id, csrf_token):
+    if not batch_id:
+        return []
+    
     res = session_obj.post(
         ATTENDANCE_URL,
         data={
@@ -48,6 +76,7 @@ def get_attendance_data(session_obj, batch_id, csrf_token):
             'menuId': 660
         },
         headers={**BROWSER_HEADERS, "x-csrf-token": csrf_token, "Referer": ATTENDANCE_REFERER_URL},
+        timeout=10
     )
     res.raise_for_status()
     soup = BeautifulSoup(res.text, 'html.parser')
@@ -71,24 +100,30 @@ def get_attendance_data(session_obj, batch_id, csrf_token):
 
 def get_calendar_data(session_obj, csrf_token):
     headers = {**BROWSER_HEADERS, "x-csrf-token": csrf_token, "Referer": ATTENDANCE_REFERER_URL}
-    res = session_obj.get(CALENDAR_URL, headers=headers)
+    res = session_obj.get(CALENDAR_URL, headers=headers, timeout=10)
     res.raise_for_status()
     match = re.search(r'var obj = JSON.parse\(\'(.*?)\'\);', res.text, re.DOTALL)
     if not match:
-        raise ValueError("Could not parse calendar data.")
-    return json.loads(match.group(1))
+        return []
+    try:
+        return json.loads(match.group(1))
+    except json.JSONDecodeError:
+        return []
 
 
 def get_structured_timetable(session_obj, csrf_token):
     headers = {**BROWSER_HEADERS, "x-csrf-token": csrf_token, "Referer": ATTENDANCE_REFERER_URL}
-    res = session_obj.get(TIMETABLE_URL, headers=headers)
+    res = session_obj.get(TIMETABLE_URL, headers=headers, timeout=10)
     res.raise_for_status()
     slots_match = re.search(r'var timeTableTemplateDetailsJson=(.*?);', res.text, re.DOTALL)
     schedule_match = re.search(r'var timeTableJson=(.*?);', res.text, re.DOTALL)
     if not (slots_match and schedule_match):
-        raise ValueError("Could not parse timetable data.")
-    slots_json = json.loads(slots_match.group(1))
-    schedule_json = json.loads(schedule_match.group(1))
+        return {}
+    try:
+        slots_json = json.loads(slots_match.group(1))
+        schedule_json = json.loads(schedule_match.group(1))
+    except json.JSONDecodeError:
+        return {}
 
     slot_times = {s['orderedBy']: f"{s['startTime']} - {s['endTime']}" for s in slots_json}
     days_map = {1: "Monday", 2: "Tuesday", 3: "Wednesday", 4: "Thursday", 5: "Friday", 6: "Saturday"}

@@ -18,6 +18,9 @@ def index():
 def api_login():
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "error": "Invalid request body"}), 400
+            
         username = data.get("username")
         password = data.get("password")
         
@@ -29,12 +32,32 @@ def api_login():
             return jsonify({"success": False, "error": error}), 401
         
         # Get initial data after login
-        semesters, student_name, csrf_token = get_semesters_and_csrf(session_obj, username)
+        try:
+            semesters, student_name, csrf_token = get_semesters_and_csrf(session_obj, username)
+        except Exception as e:
+            return jsonify({"success": False, "error": f"Failed to fetch user data: {str(e)}"}), 500
+        
         selected_batch_id = semesters[0]["id"] if semesters else None
         
-        attendance = get_attendance_data(session_obj, selected_batch_id, csrf_token)
-        calendar = get_calendar_data(session_obj, csrf_token)
-        timetable = get_structured_timetable(session_obj, csrf_token)
+        # Fetch data with fallbacks for individual failures
+        attendance = []
+        calendar = []
+        timetable = {}
+        
+        try:
+            attendance = get_attendance_data(session_obj, selected_batch_id, csrf_token)
+        except Exception as e:
+            print(f"Attendance fetch error: {e}")
+        
+        try:
+            calendar = get_calendar_data(session_obj, csrf_token)
+        except Exception as e:
+            print(f"Calendar fetch error: {e}")
+        
+        try:
+            timetable = get_structured_timetable(session_obj, csrf_token)
+        except Exception as e:
+            print(f"Timetable fetch error: {e}")
         
         return jsonify({
             "success": True,
@@ -46,12 +69,15 @@ def api_login():
             "timetable": timetable,
         })
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": f"Server error: {str(e)}"}), 500
 
 @app.route("/api/refresh", methods=["POST"])
 def api_refresh():
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "error": "Invalid request body"}), 400
+            
         username = data.get("username")
         password = data.get("password")
         
@@ -62,12 +88,32 @@ def api_refresh():
         if error:
             return jsonify({"success": False, "error": error}), 401
         
-        semesters, student_name, csrf_token = get_semesters_and_csrf(session_obj, username)
+        try:
+            semesters, student_name, csrf_token = get_semesters_and_csrf(session_obj, username)
+        except Exception as e:
+            return jsonify({"success": False, "error": f"Failed to fetch user data: {str(e)}"}), 500
+        
         selected_batch_id = semesters[0]["id"] if semesters else None
         
-        attendance = get_attendance_data(session_obj, selected_batch_id, csrf_token)
-        calendar = get_calendar_data(session_obj, csrf_token)
-        timetable = get_structured_timetable(session_obj, csrf_token)
+        # Fetch data with fallbacks for individual failures
+        attendance = []
+        calendar = []
+        timetable = {}
+        
+        try:
+            attendance = get_attendance_data(session_obj, selected_batch_id, csrf_token)
+        except Exception as e:
+            print(f"Attendance fetch error: {e}")
+        
+        try:
+            calendar = get_calendar_data(session_obj, csrf_token)
+        except Exception as e:
+            print(f"Calendar fetch error: {e}")
+        
+        try:
+            timetable = get_structured_timetable(session_obj, csrf_token)
+        except Exception as e:
+            print(f"Timetable fetch error: {e}")
         
         return jsonify({
             "success": True,
