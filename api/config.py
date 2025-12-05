@@ -3,6 +3,7 @@ import os
 BASE_URL = "https://www.pesuacademy.com/Academy"
 LOGIN_PAGE_URL = f"{BASE_URL}/"
 AUTH_URL = f"{BASE_URL}/j_spring_security_check"
+DASHBOARD_URL = f"{BASE_URL}/s/studentProfilePESU"
 CALENDAR_URL = f"{BASE_URL}/s/studentProfilePESUAdmin?menuId=668&controllerMode=6413&actionType=5"
 TIMETABLE_URL = f"{BASE_URL}/s/studentProfilePESUAdmin?menuId=669&controllerMode=6415&actionType=5"
 ATTENDANCE_URL = f"{BASE_URL}/s/studentProfilePESUAdmin"

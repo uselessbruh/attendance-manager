@@ -3,7 +3,7 @@ import json
 import requests
 from bs4 import BeautifulSoup
 from .config import (
-    LOGIN_PAGE_URL, AUTH_URL, CALENDAR_URL, TIMETABLE_URL,
+    LOGIN_PAGE_URL, AUTH_URL, DASHBOARD_URL, CALENDAR_URL, TIMETABLE_URL,
     ATTENDANCE_URL, ATTENDANCE_REFERER_URL, BASE_URL, BROWSER_HEADERS
 )
 
@@ -11,6 +11,7 @@ from .config import (
 def perform_login(username, password):
     session_obj = requests.Session()
     try:
+        # Get the login page first to obtain CSRF token and cookies
         r_get = session_obj.get(LOGIN_PAGE_URL, headers=BROWSER_HEADERS, timeout=10)
         r_get.raise_for_status()
         soup = BeautifulSoup(r_get.text, 'html.parser')
@@ -22,16 +23,32 @@ def perform_login(username, password):
         if not login_csrf:
             return None, "Login CSRF token is empty."
 
+        # Submit login credentials
         payload = {'j_username': username, 'j_password': password, '_csrf': login_csrf}
-        r_post = session_obj.post(AUTH_URL, data=payload, headers=BROWSER_HEADERS, timeout=10)
+        r_post = session_obj.post(
+            AUTH_URL, 
+            data=payload, 
+            headers={
+                **BROWSER_HEADERS,
+                'Referer': LOGIN_PAGE_URL,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            timeout=10,
+            allow_redirects=True
+        )
         r_post.raise_for_status()
 
-        if "Bad credentials" in r_post.text or "error" in r_post.text.lower():
+        # Check for login failure indicators
+        if "Bad credentials" in r_post.text or "Invalid username or password" in r_post.text:
             return None, "Invalid credentials"
         
-        # Verify login was successful by checking for redirect or dashboard elements
-        if "login" in r_post.url.lower():
+        # Verify login was successful by checking URL and response
+        if "login" in r_post.url.lower() and "error" in r_post.url.lower():
             return None, "Login failed. Please check your credentials."
+        
+        # Verify we have session cookies
+        if not session_obj.cookies:
+            return None, "Login failed. No session created."
             
         return session_obj, None
     except requests.exceptions.Timeout:
@@ -43,21 +60,39 @@ def perform_login(username, password):
 
 
 def get_semesters_and_csrf(session_obj, username):
-    dashboard_res = session_obj.get(LOGIN_PAGE_URL, headers=BROWSER_HEADERS)
+    # Navigate to the dashboard page after login
+    dashboard_res = session_obj.get(DASHBOARD_URL, headers=BROWSER_HEADERS, timeout=10, allow_redirects=True)
     dashboard_res.raise_for_status()
+    
+    # Check if we were redirected back to login (session invalid)
+    if "login" in dashboard_res.url.lower() or dashboard_res.url == LOGIN_PAGE_URL:
+        raise ValueError("Session expired or login failed. Please try logging in again.")
+    
     soup = BeautifulSoup(dashboard_res.text, 'html.parser')
     
-    csrf_input = soup.find('input', {'name': 'csrf'})
+    # Try multiple possible CSRF token locations
+    csrf_input = soup.find('input', {'name': 'csrf'}) or soup.find('input', {'id': 'csrf'})
     if not csrf_input:
-        raise ValueError("Could not find CSRF token. Login may have failed or session expired.")
-    csrf_token = csrf_input.get('value')
+        # Try to find it in meta tags as alternative
+        csrf_meta = soup.find('meta', {'name': 'csrf-token'})
+        if csrf_meta:
+            csrf_token = csrf_meta.get('content')
+        else:
+            raise ValueError("Could not find CSRF token. The website structure may have changed.")
+    else:
+        csrf_token = csrf_input.get('value')
+    
     if not csrf_token:
         raise ValueError("CSRF token is empty. Login may have failed.")
     
-    semester_options = soup.find_all('option')
-    semesters = [{'id': opt.get('value', '').strip('"'), 'name': opt.text} for opt in semester_options if opt.get('value')]
+    # Get semester options - look for select elements with batch/semester info
+    semester_select = soup.find('select', {'id': 'batchId'}) or soup.find('select')
+    semester_options = semester_select.find_all('option') if semester_select else []
+    semesters = [{'id': opt.get('value', '').strip('"'), 'name': opt.text.strip()} 
+                 for opt in semester_options if opt.get('value') and opt.get('value').strip()]
     
-    student_name_tag = soup.find('span', class_='app-name-font')
+    # Get student name
+    student_name_tag = soup.find('span', class_='app-name-font') or soup.find('span', class_='student-name')
     student_name = student_name_tag.text.strip().title() if student_name_tag else username
     
     return semesters, student_name, csrf_token
