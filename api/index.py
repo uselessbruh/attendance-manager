@@ -12,7 +12,8 @@ app.secret_key = SECRET_KEY
 CORS(app)
 
 @app.route("/")
-def index():
+@app.route("/api")
+def api_index():
     return jsonify({"message": "Attendance API Running", "status": "active"})
 
 @app.route("/api/login", methods=["POST"])
