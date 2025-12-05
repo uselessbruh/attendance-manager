@@ -113,7 +113,7 @@ class AttendanceApp {
                     'Authorization': `Bearer ${token}`
                 }
             });
-            
+
             const data = await response.json();
 
             if (data.success) {
@@ -127,7 +127,7 @@ class AttendanceApp {
             sessionStorage.removeItem('authToken');
             this.showLogin('Failed to load data. Please try again.');
         }
-    }    showLoading() {
+    } showLoading() {
         this.appContainer.innerHTML = `
             <div class="loading">
                 <div class="spinner"></div>
