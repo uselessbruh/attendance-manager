@@ -2,7 +2,7 @@ import re
 import json
 import requests
 from bs4 import BeautifulSoup
-from .config import (
+from api.config import (
     LOGIN_PAGE_URL, AUTH_URL, DASHBOARD_URL, CALENDAR_URL, TIMETABLE_URL,
     ATTENDANCE_URL, ATTENDANCE_REFERER_URL, BASE_URL, BROWSER_HEADERS
 )

@@ -1,10 +1,10 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from .scraping import (
+from api.scraping import (
     perform_login, get_semesters_and_csrf,
     get_attendance_data, get_calendar_data, get_structured_timetable
 )
-from .config import SECRET_KEY
+from api.config import SECRET_KEY
 import base64
 
 app = Flask(__name__)
@@ -78,18 +78,6 @@ def api_all_data():
             timetable = get_structured_timetable(session_obj, csrf_token)
         except Exception as e:
             print(f"Timetable fetch error: {e}")
-        
-        return jsonify({
-            "success": True,
-            "student_name": student_name,
-            "attendance": attendance,
-            "semesters": semesters,
-            "selected_batch_id": selected_batch_id,
-            "calendar": calendar,
-            "timetable": timetable,
-        })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
         
         return jsonify({
             "success": True,
