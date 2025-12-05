@@ -1,8 +1,21 @@
 {
+  "version": 2,
   "builds": [
     {
       "src": "api/index.py",
       "use": "@vercel/python"
+    },
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "script.js",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "styles.css",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
@@ -11,8 +24,12 @@
       "dest": "api/index.py"
     },
     {
-      "src": "/(.*)",
+      "src": "/(.*\\.(js|css|ico|png|jpg|jpeg|svg|gif))",
       "dest": "/$1"
+    },
+    {
+      "src": "/",
+      "dest": "/index.html"
     }
   ]
 }
