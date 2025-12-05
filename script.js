@@ -4,7 +4,6 @@ class AttendanceApp {
     constructor() {
         this.appContainer = document.getElementById('app');
         this.userData = null;
-        this.currentData = null;
         this.targetPercentage = 75;
         this.sortMethod = 'default';
         this.init();
@@ -79,24 +78,17 @@ class AttendanceApp {
         btn.textContent = 'Signing in...';
 
         const formData = new FormData(e.target);
-        const username = formData.get('username');
-        const password = formData.get('password');
 
         try {
             const response = await fetch(`${API_BASE}/api/login`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ username, password })
+                body: formData
             });
 
             const data = await response.json();
 
             if (data.success) {
-                sessionStorage.setItem('username', username);
-                sessionStorage.setItem('password', password);
-                this.currentData = data;
+                sessionStorage.setItem('authToken', data.token);
                 await this.loadDashboard();
             } else {
                 this.showLogin(data.error || 'Login failed. Please check your credentials.');
@@ -107,51 +99,35 @@ class AttendanceApp {
     }
 
     async loadDashboard() {
-        // If we already have data from login, use it
-        if (this.currentData && this.currentData.success) {
-            this.userData = this.currentData;
-            this.currentData = null;
-            this.showDashboard();
-            return;
-        }
-
-        // Otherwise, fetch fresh data
         this.showLoading();
 
         try {
-            const username = sessionStorage.getItem('username');
-            const password = sessionStorage.getItem('password');
-
-            if (!username || !password) {
-                sessionStorage.clear();
+            const token = sessionStorage.getItem('authToken');
+            if (!token) {
                 this.showLogin('Session expired. Please login again.');
                 return;
             }
 
-            const response = await fetch(`${API_BASE}/api/refresh`, {
-                method: 'POST',
+            const response = await fetch(`${API_BASE}/api/all_data`, {
                 headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ username, password })
+                    'Authorization': `Bearer ${token}`
+                }
             });
-
+            
             const data = await response.json();
 
             if (data.success) {
                 this.userData = data;
                 this.showDashboard();
             } else {
-                sessionStorage.clear();
+                sessionStorage.removeItem('authToken');
                 this.showLogin('Session expired. Please login again.');
             }
         } catch (error) {
-            sessionStorage.clear();
+            sessionStorage.removeItem('authToken');
             this.showLogin('Failed to load data. Please try again.');
         }
-    }
-
-    showLoading() {
+    }    showLoading() {
         this.appContainer.innerHTML = `
             <div class="loading">
                 <div class="spinner"></div>
@@ -316,7 +292,7 @@ class AttendanceApp {
 
     attachDashboardListeners() {
         document.getElementById('logout-btn').addEventListener('click', () => {
-            sessionStorage.clear();
+            sessionStorage.removeItem('authToken');
             this.userData = null;
             this.showLogin();
         });
