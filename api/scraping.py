@@ -2,10 +2,19 @@ import re
 import json
 import requests
 from bs4 import BeautifulSoup
-from api.config import (
-    LOGIN_PAGE_URL, AUTH_URL, DASHBOARD_URL, CALENDAR_URL, TIMETABLE_URL,
-    ATTENDANCE_URL, ATTENDANCE_REFERER_URL, BASE_URL, BROWSER_HEADERS
-)
+
+try:
+    # For Vercel
+    from api.config import (
+        LOGIN_PAGE_URL, AUTH_URL, DASHBOARD_URL, CALENDAR_URL, TIMETABLE_URL,
+        ATTENDANCE_URL, ATTENDANCE_REFERER_URL, BASE_URL, BROWSER_HEADERS
+    )
+except ImportError:
+    # For local testing
+    from config import (
+        LOGIN_PAGE_URL, AUTH_URL, DASHBOARD_URL, CALENDAR_URL, TIMETABLE_URL,
+        ATTENDANCE_URL, ATTENDANCE_REFERER_URL, BASE_URL, BROWSER_HEADERS
+    )
 
 
 def perform_login(username, password):

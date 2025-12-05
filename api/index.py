@@ -1,11 +1,21 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from api.scraping import (
-    perform_login, get_semesters_and_csrf,
-    get_attendance_data, get_calendar_data, get_structured_timetable
-)
-from api.config import SECRET_KEY
 import base64
+
+try:
+    # For Vercel
+    from api.scraping import (
+        perform_login, get_semesters_and_csrf,
+        get_attendance_data, get_calendar_data, get_structured_timetable
+    )
+    from api.config import SECRET_KEY
+except ImportError:
+    # For local testing
+    from scraping import (
+        perform_login, get_semesters_and_csrf,
+        get_attendance_data, get_calendar_data, get_structured_timetable
+    )
+    from config import SECRET_KEY
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -86,3 +96,6 @@ def api_all_data():
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+if __name__ == "__main__":
+    app.run(debug=True, port=5000)
