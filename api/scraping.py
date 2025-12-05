@@ -39,11 +39,21 @@ def perform_login(username, password):
 def get_semesters_and_csrf(session_obj, username):
     dashboard_res = session_obj.get(LOGIN_PAGE_URL, headers=BROWSER_HEADERS)
     soup = BeautifulSoup(dashboard_res.text, 'html.parser')
-    csrf_token = soup.find('input', {'name': 'csrf'})['value']
+    
+    # Get CSRF token
+    csrf_input = soup.find('input', {'name': 'csrf'})
+    if not csrf_input:
+        raise ValueError("Could not find CSRF token. Login may have failed.")
+    csrf_token = csrf_input['value']
+    
+    # Get semesters
     semester_options = soup.find_all('option')
-    semesters = [{'id': opt['value'].strip('"'), 'name': opt.text} for opt in semester_options]
+    semesters = [{'id': opt['value'].strip('"'), 'name': opt.text} for opt in semester_options if opt.get('value')]
+    
+    # Get student name
     student_name_tag = soup.find('span', class_='app-name-font')
     student_name = student_name_tag.text.strip().title() if student_name_tag else username
+    
     return semesters, student_name, csrf_token
 
 

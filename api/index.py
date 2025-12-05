@@ -60,9 +60,13 @@ def api_all_data():
         
         session_obj, error = perform_login(username, password)
         if error:
-            return jsonify({"success": False, "error": error}), 401
+            return jsonify({"success": False, "error": f"Re-login failed: {error}"}), 401
         
-        semesters, student_name, csrf_token = get_semesters_and_csrf(session_obj, username)
+        try:
+            semesters, student_name, csrf_token = get_semesters_and_csrf(session_obj, username)
+        except Exception as e:
+            return jsonify({"success": False, "error": f"Failed to get semesters/CSRF: {str(e)}"}), 500
+        
         selected_batch_id = semesters[0]["id"] if semesters else None
         
         # Fetch data with fallbacks
@@ -74,16 +78,19 @@ def api_all_data():
             attendance = get_attendance_data(session_obj, selected_batch_id, csrf_token)
         except Exception as e:
             print(f"Attendance fetch error: {e}")
+            attendance = []
         
         try:
             calendar = get_calendar_data(session_obj, csrf_token)
         except Exception as e:
             print(f"Calendar fetch error: {e}")
+            calendar = []
         
         try:
             timetable = get_structured_timetable(session_obj, csrf_token)
         except Exception as e:
             print(f"Timetable fetch error: {e}")
+            timetable = {}
         
         return jsonify({
             "success": True,
