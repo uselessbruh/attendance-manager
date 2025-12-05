@@ -1,4 +1,5 @@
-from flask import Flask, request, session, jsonify
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 from .scraping import (
     perform_login, get_semesters_and_csrf,
     get_attendance_data, get_calendar_data, get_structured_timetable
@@ -7,10 +8,7 @@ from .config import SECRET_KEY
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
-
-# Vercel serverless handler
-def handler(environ, start_response):
-    return app(environ, start_response)
+CORS(app)
 
 @app.route("/")
 def index():
@@ -18,27 +16,51 @@ def index():
 
 @app.route("/api/login", methods=["POST"])
 def api_login():
-    username = request.form.get("username")
-    password = request.form.get("password")
-    
-    session_obj, error = perform_login(username, password)
-    if error:
-        return jsonify({"success": False, "error": error})
-    
-    session["username"] = username
-    session["password"] = password
-    return jsonify({"success": True})
-
-@app.route("/api/all_data")
-def api_all_data():
-    if "username" not in session:
-        return jsonify({"success": False, "error": "Not logged in"})
-    
     try:
-        username = session["username"]
-        session_obj, error = perform_login(username, session["password"])
+        data = request.get_json()
+        username = data.get("username")
+        password = data.get("password")
+        
+        if not username or not password:
+            return jsonify({"success": False, "error": "Username and password required"}), 400
+        
+        session_obj, error = perform_login(username, password)
         if error:
-            raise ValueError(error)
+            return jsonify({"success": False, "error": error}), 401
+        
+        # Get initial data after login
+        semesters, student_name, csrf_token = get_semesters_and_csrf(session_obj, username)
+        selected_batch_id = semesters[0]["id"] if semesters else None
+        
+        attendance = get_attendance_data(session_obj, selected_batch_id, csrf_token)
+        calendar = get_calendar_data(session_obj, csrf_token)
+        timetable = get_structured_timetable(session_obj, csrf_token)
+        
+        return jsonify({
+            "success": True,
+            "student_name": student_name,
+            "attendance": attendance,
+            "semesters": semesters,
+            "selected_batch_id": selected_batch_id,
+            "calendar": calendar,
+            "timetable": timetable,
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/refresh", methods=["POST"])
+def api_refresh():
+    try:
+        data = request.get_json()
+        username = data.get("username")
+        password = data.get("password")
+        
+        if not username or not password:
+            return jsonify({"success": False, "error": "Username and password required"}), 400
+        
+        session_obj, error = perform_login(username, password)
+        if error:
+            return jsonify({"success": False, "error": error}), 401
         
         semesters, student_name, csrf_token = get_semesters_and_csrf(session_obj, username)
         selected_batch_id = semesters[0]["id"] if semesters else None
@@ -57,10 +79,4 @@ def api_all_data():
             "timetable": timetable,
         })
     except Exception as e:
-        session.clear()
-        return jsonify({"success": False, "error": str(e)})
-
-@app.route('/api/logout')
-def api_logout():
-    session.clear()
-    return jsonify({"success": True})
+        return jsonify({"success": False, "error": str(e)}), 500

@@ -4,6 +4,7 @@ class AttendanceApp {
     constructor() {
         this.appContainer = document.getElementById('app');
         this.userData = null;
+        this.currentData = null;
         this.targetPercentage = 75;
         this.sortMethod = 'default';
         this.init();
@@ -78,18 +79,24 @@ class AttendanceApp {
         btn.textContent = 'Signing in...';
 
         const formData = new FormData(e.target);
+        const username = formData.get('username');
+        const password = formData.get('password');
 
         try {
             const response = await fetch(`${API_BASE}/api/login`, {
                 method: 'POST',
-                body: formData
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
             });
 
             const data = await response.json();
 
             if (data.success) {
-                sessionStorage.setItem('username', formData.get('username'));
-                sessionStorage.setItem('password', formData.get('password'));
+                sessionStorage.setItem('username', username);
+                sessionStorage.setItem('password', password);
+                this.currentData = data;
                 await this.loadDashboard();
             } else {
                 this.showLogin(data.error || 'Login failed. Please check your credentials.');
@@ -100,10 +107,35 @@ class AttendanceApp {
     }
 
     async loadDashboard() {
+        // If we already have data from login, use it
+        if (this.currentData && this.currentData.success) {
+            this.userData = this.currentData;
+            this.currentData = null;
+            this.showDashboard();
+            return;
+        }
+
+        // Otherwise, fetch fresh data
         this.showLoading();
 
         try {
-            const response = await fetch(`${API_BASE}/api/all_data`);
+            const username = sessionStorage.getItem('username');
+            const password = sessionStorage.getItem('password');
+            
+            if (!username || !password) {
+                sessionStorage.clear();
+                this.showLogin('Session expired. Please login again.');
+                return;
+            }
+
+            const response = await fetch(`${API_BASE}/api/refresh`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
+            });
+            
             const data = await response.json();
 
             if (data.success) {
